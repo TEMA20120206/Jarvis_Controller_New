@@ -20,13 +20,23 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Clear system NDK and Install Dependencies
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install System Dependencies for Python/Android Build
         run: |
+          # Полный набор библиотек для компиляции рецептов Python, OpenSSL и Kivy
           sudo rm -rf /usr/local/lib/android/sdk/ndk
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential autoconf automake libtool pkg-config \
-            cmake ninja-build git ccache
+            cmake ninja-build git ccache coreutils pathspec \
+            libssl-dev libffi-dev libsqlite3-dev zlib1g-dev \
+            libgdbm-dev libncurses5-dev libgdbm-compat-dev \
+            libreadline-dev libbz2-dev liblzma-dev tk-dev uuid-dev
           pip install --upgrade pip virtualenv setuptools Cython==3.0.11 sh wheel standard-imghdr pathspec
 
       - name: Install Android NDK r25b
@@ -39,41 +49,59 @@ jobs:
       - name: Clone and Patch python-for-android
         run: |
           git clone -b develop https://github.com/kivy/python-for-android.git
-          TARGET_FILE="python-for-android/pythonforandroid/recipes/libthorvg/__init__.py"
           
-          # Заменяем сломанный поиск путей Clang на прямой путь, актуальный для NDK r25b
-          sed -i 's/clang_dirs = glob.glob.*/clang_dirs = [os.path.join(self.ctx.ndk_dir, "toolchains", "llvm", "prebuilt", "linux-x86_64", "lib64", "clang")]/g' "$TARGET_FILE"
-          sed -i 's/clang_dir = glob.glob.*/clang_dir = glob.glob(os.path.join(clang_dirs[0], "*"))[0]/g' "$TARGET_FILE"
-          
-          echo "Поле после патча:"
-          sed -n '90,105p' "$TARGET_FILE"
+          # Безопасный патч рецептов через Python-скрипт вместо sed во избежание синтаксических ошибок
+          python3 - <<EOF
+          import os, glob
+
+          # 1. Исправление падения скачивания CPython 3.11 (404 ошибка GitHub)
+          p3_path = 'python-for-android/pythonforandroid/recipes/python3/__init__.py'
+          with open(p3_path, 'r') as f: code = f.read()
+          code = code.replace('https://github.com/python/cpython/archive/refs/tags/v{version}.tar.gz', 'https://www.python.org/ftp/python/{version}/Python-{version}.tgz')
+          code = code.replace('version = "3.11"', 'version = "3.11.9"')
+          with open(p3_path, 'w') as f: f.write(code)
+
+          hp3_path = 'python-for-android/pythonforandroid/recipes/hostpython3/__init__.py'
+          with open(hp3_path, 'r') as f: code = f.read()
+          code = code.replace('version = "3.11"', 'version = "3.11.9"')
+          with open(hp3_path, 'w') as f: f.write(code)
+
+          # 2. Исправление путей Clang в рецепте libthorvg для NDK r25b
+          thor_path = 'python-for-android/pythonforandroid/recipes/libthorvg/__init__.py'
+          with open(thor_path, 'r') as f: code = f.read()
+          code = code.replace('clang_dirs = glob.glob(os.path.join(self.ctx.ndk_dir, "toolchains", "llvm", "prebuilt", "*", "lib64", "clang"))', 
+                              'clang_dirs = [os.path.join(self.ctx.ndk_dir, "toolchains", "llvm", "prebuilt", "linux-x86_64", "lib64", "clang")]')
+          with open(thor_path, 'w') as f: f.write(code)
+
+          print("Патчинг python-for-android успешно завершен!")
+          EOF
 
       - name: Install Buildozer
         run: |
           pip install git+https://github.com/kivy/buildozer.git
 
-      - name: Build APK with Buildozer
+      - name: Pre-configure Android SDK and Licenses
         run: |
-          # 1. Заставляем Buildozer скачать базовый SDK
+          # Инициализируем базовую структуру папок Android SDK через buildozer
           buildozer android p4a -- get-packages || true
           
-          # Очевидный абсолютный путь к SDK, куда Buildozer всё распаковывает
           ANDROID_SDK_ROOT="/home/runner/.buildozer/android/platform/android-sdk"
           SDK_MANAGER="$ANDROID_SDK_ROOT/tools/bin/sdkmanager"
           
           if [ -f "$SDK_MANAGER" ]; then
-            echo "Флаг sdk_root исправляет IllegalArgumentException в старых инструментах SDK"
+            git config --global --add safe.directory '*'
             echo "Принимаем лицензии Android SDK..."
             yes | $SDK_MANAGER --sdk_root=$ANDROID_SDK_ROOT --licenses
             
-            echo "Обновляем build-tools до стабильной версии, чтобы Buildozer не спотыкался на 37-й версии"
-            yes | $SDK_MANAGER --sdk_root=$ANDROID_SDK_ROOT "build-tools;33.0.1" "platform-tools" "platforms;android-33"
+            echo "Превентивно устанавливаем компоненты сборки версии 33..."
+            yes | $SDK_MANAGER --sdk_root=$ANDROID_SDK_ROOT "build-tools;33.0.1" "platforms;android-33" "platform-tools"
           else
-            echo "Критическая ошибка: sdkmanager не развернулся!"
+            echo "Критическая ошибка: sdkmanager не был развернут автоматически!"
             exit 1
           fi
 
-          # 2. Передаем путь к кастомному p4a и запускаем финальную сборку
+      - name: Build APK with Buildozer
+        run: |
           export P4A_dir=$GITHUB_WORKSPACE/python-for-android
           buildozer android debug
         env:
