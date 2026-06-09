@@ -28,11 +28,11 @@ jobs:
             build-essential autoconf automake libtool pkg-config \
             cmake ninja-build git ccache
           pip install --upgrade pip virtualenv setuptools Cython==3.0.11 sh wheel standard-imghdr pathspec
+
       - name: Install Android NDK r25b
         run: |
           wget -q https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
           unzip -q android-ndk-r25b-linux.zip
-          # Записываем в GITHUB_ENV абсолютный путь на runner-е
           echo "ANDROID_NDK_HOME=$GITHUB_WORKSPACE/android-ndk-r25b" >> $GITHUB_ENV
           echo "ANDROID_NDK_ROOT=$GITHUB_WORKSPACE/android-ndk-r25b" >> $GITHUB_ENV
 
@@ -54,7 +54,19 @@ jobs:
 
       - name: Build APK with Buildozer
         run: |
-          # Передаем P4A_dir, чтобы buildozer использовал именно наш пропатченный p4a
+          # Пре-загрузка пакетов для генерации структуры SDK
+          buildozer android p4a -- get-packages || true
+          
+          # Автоматическое принятие всех лицензий SDK перед основной сборкой
+          SDK_MANAGER=$(find /home/runner/.buildozer/ -name "sdkmanager" | head -n 1)
+          if [ -n "$SDK_MANAGER" ]; then
+            echo "Принимаем лицензии Android SDK..."
+            yes | $SDK_MANAGER --licenses
+          else
+            echo "sdkmanager не найден, продолжаем стандартную сборку"
+          fi
+
+          # Передаем путь к кастомному p4a и собираем
           export P4A_dir=$GITHUB_WORKSPACE/python-for-android
           buildozer android debug
         env:
