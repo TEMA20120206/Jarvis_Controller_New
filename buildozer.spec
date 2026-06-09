@@ -6,20 +6,23 @@ source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
 version = 1.0.0
 
-requirements = python3==3.11.9,hostpython3==3.11.9,kivy==2.3.0,kivymd,requests
+# Упростили до 3.11, чтобы избежать конфликтов рецептов
+requirements = python3==3.11,hostpython3==3.11,kivy==2.3.0,kivymd,requests
 
 orientation = portrait
 fullscreen = 1
 android.archs = arm64-v8a, armeabi-v7a
 android.allow_backup = True
 
-# КРИТИЧЕСКИЕ НАСТРОЙКИ ДЛЯ ФИКСА
 android.api = 33
 android.minapi = 21
 android.ndk = 25b
-android.ndk_path = /home/runner/work/jarvis3/jarvis3/android-ndk-r25b
-p4a.source_dir = ./python-for-android
 android.permissions = INTERNET
+
+# НАСТРОЙКИ ПУТЕЙ (Переносим управление в GitHub Actions workflow)
+# buildozer автоматически подхватит ANDROID_NDK_HOME и P4A_dir из env
+# android.ndk_path = 
+# p4a.source_dir = 
 
 [buildozer]
 log_level = 2
