@@ -26,9 +26,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential autoconf automake libtool pkg-config \
-            cmake ninja-build git ccache pathspec
-          pip install --upgrade pip virtualenv setuptools Cython==3.0.11 sh wheel standard-imghdr
-
+            cmake ninja-build git ccache
+          pip install --upgrade pip virtualenv setuptools Cython==3.0.11 sh wheel standard-imghdr pathspec
       - name: Install Android NDK r25b
         run: |
           wget -q https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
