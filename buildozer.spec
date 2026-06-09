@@ -6,7 +6,7 @@ source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
 version = 1.0.0
 
-# Упростили до 3.11, чтобы избежать конфликтов рецептов
+# Фиксация ветки Python 3.11 без микроверсий для стабильности рецептов
 requirements = python3==3.11,hostpython3==3.11,kivy==2.3.0,kivymd,requests
 
 orientation = portrait
@@ -14,13 +14,13 @@ fullscreen = 1
 android.archs = arm64-v8a, armeabi-v7a
 android.allow_backup = True
 
+# Базовые настройки Android SDK/NDK
 android.api = 33
 android.minapi = 21
 android.ndk = 25b
 android.permissions = INTERNET
 
-# НАСТРОЙКИ ПУТЕЙ (Переносим управление в GitHub Actions workflow)
-# buildozer автоматически подхватит ANDROID_NDK_HOME и P4A_dir из env
+# Пути закомментированы, так как мы управляем ими через GitHub Actions (переменные P4A_dir и ANDROID_NDK_HOME)
 # android.ndk_path = 
 # p4a.source_dir = 
 
