@@ -19,6 +19,7 @@ android.minapi = 21
 android.ndk = 25b
 android.ndk_path = /home/runner/work/jarvis3/jarvis3/android-ndk-r25b
 p4a.source_dir = ./python-for-android
+android.permissions = INTERNET
 
 [buildozer]
 log_level = 2
