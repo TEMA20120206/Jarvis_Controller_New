@@ -33,15 +33,16 @@ jobs:
         run: |
           wget -q https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
           unzip -q android-ndk-r25b-linux.zip
-          echo "ANDROID_NDK_HOME=$PWD/android-ndk-r25b" >> $GITHUB_ENV
-          echo "ANDROID_NDK_ROOT=$PWD/android-ndk-r25b" >> $GITHUB_ENV
+          # Записываем в GITHUB_ENV абсолютный путь на runner-е
+          echo "ANDROID_NDK_HOME=$GITHUB_WORKSPACE/android-ndk-r25b" >> $GITHUB_ENV
+          echo "ANDROID_NDK_ROOT=$GITHUB_WORKSPACE/android-ndk-r25b" >> $GITHUB_ENV
 
       - name: Clone and Patch python-for-android
         run: |
           git clone -b develop https://github.com/kivy/python-for-android.git
           TARGET_FILE="python-for-android/pythonforandroid/recipes/libthorvg/__init__.py"
           
-          # Заменяем сломанный поиск путей Clang на прямой путь, актуальный для NDK r25b в Ubuntu
+          # Заменяем сломанный поиск путей Clang на прямой путь, актуальный для NDK r25b
           sed -i 's/clang_dirs = glob.glob.*/clang_dirs = [os.path.join(self.ctx.ndk_dir, "toolchains", "llvm", "prebuilt", "linux-x86_64", "lib64", "clang")]/g' "$TARGET_FILE"
           sed -i 's/clang_dir = glob.glob.*/clang_dir = glob.glob(os.path.join(clang_dirs[0], "*"))[0]/g' "$TARGET_FILE"
           
@@ -54,8 +55,8 @@ jobs:
 
       - name: Build APK with Buildozer
         run: |
-          export ANDROID_NDK_HOME=$ANDROID_NDK_HOME
-          export ANDROID_NDK_ROOT=$ANDROID_NDK_ROOT
+          # Передаем P4A_dir, чтобы buildozer использовал именно наш пропатченный p4a
+          export P4A_dir=$GITHUB_WORKSPACE/python-for-android
           buildozer android debug
         env:
           ACCEPT_SDK_LICENSE: "y"
