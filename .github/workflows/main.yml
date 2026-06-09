@@ -54,19 +54,26 @@ jobs:
 
       - name: Build APK with Buildozer
         run: |
-          # Пре-загрузка пакетов для генерации структуры SDK
+          # 1. Заставляем Buildozer скачать базовый SDK
           buildozer android p4a -- get-packages || true
           
-          # Автоматическое принятие всех лицензий SDK перед основной сборкой
-          SDK_MANAGER=$(find /home/runner/.buildozer/ -name "sdkmanager" | head -n 1)
-          if [ -n "$SDK_MANAGER" ]; then
+          # Очевидный абсолютный путь к SDK, куда Buildozer всё распаковывает
+          ANDROID_SDK_ROOT="/home/runner/.buildozer/android/platform/android-sdk"
+          SDK_MANAGER="$ANDROID_SDK_ROOT/tools/bin/sdkmanager"
+          
+          if [ -f "$SDK_MANAGER" ]; then
+            echo "Флаг sdk_root исправляет IllegalArgumentException в старых инструментах SDK"
             echo "Принимаем лицензии Android SDK..."
-            yes | $SDK_MANAGER --licenses
+            yes | $SDK_MANAGER --sdk_root=$ANDROID_SDK_ROOT --licenses
+            
+            echo "Обновляем build-tools до стабильной версии, чтобы Buildozer не спотыкался на 37-й версии"
+            yes | $SDK_MANAGER --sdk_root=$ANDROID_SDK_ROOT "build-tools;33.0.1" "platform-tools" "platforms;android-33"
           else
-            echo "sdkmanager не найден, продолжаем стандартную сборку"
+            echo "Критическая ошибка: sdkmanager не развернулся!"
+            exit 1
           fi
 
-          # Передаем путь к кастомному p4a и собираем
+          # 2. Передаем путь к кастомному p4a и запускаем финальную сборку
           export P4A_dir=$GITHUB_WORKSPACE/python-for-android
           buildozer android debug
         env:
