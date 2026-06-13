@@ -1,10 +1,9 @@
-name: Build Jarvis Controller
+
+name: Build Jarvis APK
 
 on:
   push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -12,103 +11,18 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Build APK
+        uses: ArtemSBulgakov/buildozer-action@v1
+        id: buildozer
         with:
-          python-version: '3.11'
+          command: buildozer android debug
+          buildozer_version: stable
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Install System Dependencies for Python/Android Build
-        run: |
-          # Полный набор библиотек для компиляции рецептов Python, OpenSSL и Kivy
-          sudo rm -rf /usr/local/lib/android/sdk/ndk
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential autoconf automake libtool pkg-config \
-            cmake ninja-build git ccache coreutils pathspec \
-            libssl-dev libffi-dev libsqlite3-dev zlib1g-dev \
-            libgdbm-dev libncurses5-dev libgdbm-compat-dev \
-            libreadline-dev libbz2-dev liblzma-dev tk-dev uuid-dev
-          pip install --upgrade pip virtualenv setuptools Cython==3.0.11 sh wheel standard-imghdr pathspec
-
-      - name: Install Android NDK r25b
-        run: |
-          wget -q https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
-          unzip -q android-ndk-r25b-linux.zip
-          echo "ANDROID_NDK_HOME=$GITHUB_WORKSPACE/android-ndk-r25b" >> $GITHUB_ENV
-          echo "ANDROID_NDK_ROOT=$GITHUB_WORKSPACE/android-ndk-r25b" >> $GITHUB_ENV
-
-      - name: Clone and Patch python-for-android
-        run: |
-          git clone -b develop https://github.com/kivy/python-for-android.git
-          
-          # Безопасный патч рецептов через Python-скрипт вместо sed во избежание синтаксических ошибок
-          python3 - <<EOF
-          import os, glob
-
-          # 1. Исправление падения скачивания CPython 3.11 (404 ошибка GitHub)
-          p3_path = 'python-for-android/pythonforandroid/recipes/python3/__init__.py'
-          with open(p3_path, 'r') as f: code = f.read()
-          code = code.replace('https://github.com/python/cpython/archive/refs/tags/v{version}.tar.gz', 'https://www.python.org/ftp/python/{version}/Python-{version}.tgz')
-          code = code.replace('version = "3.11"', 'version = "3.11.9"')
-          with open(p3_path, 'w') as f: f.write(code)
-
-          hp3_path = 'python-for-android/pythonforandroid/recipes/hostpython3/__init__.py'
-          with open(hp3_path, 'r') as f: code = f.read()
-          code = code.replace('version = "3.11"', 'version = "3.11.9"')
-          with open(hp3_path, 'w') as f: f.write(code)
-
-          # 2. Исправление путей Clang в рецепте libthorvg для NDK r25b
-          thor_path = 'python-for-android/pythonforandroid/recipes/libthorvg/__init__.py'
-          with open(thor_path, 'r') as f: code = f.read()
-          code = code.replace('clang_dirs = glob.glob(os.path.join(self.ctx.ndk_dir, "toolchains", "llvm", "prebuilt", "*", "lib64", "clang"))', 
-                              'clang_dirs = [os.path.join(self.ctx.ndk_dir, "toolchains", "llvm", "prebuilt", "linux-x86_64", "lib64", "clang")]')
-          with open(thor_path, 'w') as f: f.write(code)
-
-          print("Патчинг python-for-android успешно завершен!")
-          EOF
-
-      - name: Install Buildozer
-        run: |
-          pip install git+https://github.com/kivy/buildozer.git
-
-      - name: Pre-configure Android SDK and Licenses
-        run: |
-          # Инициализируем базовую структуру папок Android SDK через buildozer
-          buildozer android p4a -- get-packages || true
-          
-          ANDROID_SDK_ROOT="/home/runner/.buildozer/android/platform/android-sdk"
-          SDK_MANAGER="$ANDROID_SDK_ROOT/tools/bin/sdkmanager"
-          
-          if [ -f "$SDK_MANAGER" ]; then
-            git config --global --add safe.directory '*'
-            echo "Принимаем лицензии Android SDK..."
-            yes | $SDK_MANAGER --sdk_root=$ANDROID_SDK_ROOT --licenses
-            
-            echo "Превентивно устанавливаем компоненты сборки версии 33..."
-            yes | $SDK_MANAGER --sdk_root=$ANDROID_SDK_ROOT "build-tools;33.0.1" "platforms;android-33" "platform-tools"
-          else
-            echo "Критическая ошибка: sdkmanager не был развернут автоматически!"
-            exit 1
-          fi
-
-      - name: Build APK with Buildozer
-        run: |
-          export P4A_dir=$GITHUB_WORKSPACE/python-for-android
-          buildozer android debug
-        env:
-          ACCEPT_SDK_LICENSE: "y"
-
-      - name: Upload APK Artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: jarvis-controller-apk
-          path: bin/*.apk
+          name: jarvis-apk
+          path: ${{ steps.buildozer.outputs.filename }}
