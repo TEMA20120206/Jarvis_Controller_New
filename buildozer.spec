@@ -1,56 +1,21 @@
-name: Build Jarvis APK
+[app]
+title = Jarvis Controller
+package.name = jarviscontroller
+package.domain = org.jarvis
+source.dir = .
+source.include_exts = py,png,jpg,kv,atlas
+version = 1.0.0
 
-on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
+requirements = python3==3.10.14,kivy==2.3.0,kivymd==1.2.0,Cython==0.29.33,requests
 
-jobs:
-  build:
-    runs-on: ubuntu-22.04
+orientation = portrait
+fullscreen = 1
+android.archs = arm64-v8a
+android.api = 33
+android.minapi = 21
+android.ndk = 25b
+android.permissions = INTERNET
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python 3.10
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential git zip unzip \
-            libffi-dev libssl-dev \
-            python3-pip autoconf libtool pkg-config \
-            zlib1g-dev libncurses5-dev libncursesw5-dev \
-            cmake libltdl-dev
-          pip install --upgrade pip
-          pip install buildozer==1.5.0 Cython==0.29.33
-
-      - name: Pre-accept Android SDK licenses
-        run: |
-          mkdir -p $HOME/.buildozer/android/platform/android-sdk/licenses
-          printf "24333f8a63b6825ea9c5514f83c2829b004d1fee\nd56f5187479451eabf01fb78af6dfcb131a6481e\n84831b9409646a918e30573bab4c9c91346d8abd" \
-            > $HOME/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
-          printf "84831b9409646a918e30573bab4c9c91346d8abd" \
-            > $HOME/.buildozer/android/platform/android-sdk/licenses/android-sdk-preview-license
-
-      - name: Build APK
-        run: buildozer android debug
-        env:
-          JAVA_HOME: ${{ env.JAVA_HOME_17_X64 }}
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: jarvis-apk
-          path: bin/*.apk
+[buildozer]
+log_level = 2
+warn_on_root = 1
